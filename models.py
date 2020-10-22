@@ -71,6 +71,7 @@ class User(db.Model):
         db.Text,
         nullable=False,
     )
+    #
 
     messages = db.relationship('Message', order_by='Message.timestamp.desc()')
 
@@ -80,6 +81,10 @@ class User(db.Model):
         primaryjoin=(Follows.user_being_followed_id == id),
         secondaryjoin=(Follows.user_following_id == id)
     )
+
+    likes = db.relationship("Message", secondary="likes",
+                            backref='users')
+
 
     following = db.relationship(
         "User",
@@ -98,7 +103,7 @@ class User(db.Model):
         return len(found_user_list) == 1
 
     def is_following(self, other_user):
-        """Is this user following `other_use`?"""
+        """Is this user following `other_user`?"""
 
         found_user_list = [user for user in self.following if user == other_user]
         return len(found_user_list) == 1
@@ -172,6 +177,24 @@ class Message(db.Model):
 
     user = db.relationship('User')
 
+
+class Likes(db.Model):
+    """Connection of a follower <-> followed_user."""
+
+    __tablename__ = 'likes'
+
+    user_that_liked = db.Column(
+        db.Integer,
+        db.ForeignKey('users.id', ondelete="cascade"),
+        primary_key=True,
+    )
+
+    message_liked = db.Column(
+        db.Integer,
+        db.ForeignKey('messages.id', ondelete="cascade"),
+        primary_key=True,
+    )
+    
 
 def connect_db(app):
     """Connect this database to provided Flask app.

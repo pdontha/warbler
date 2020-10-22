@@ -3,9 +3,9 @@ import os
 from flask import Flask, render_template, request, flash, redirect, session, g
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
-
-from forms import UserAddForm, LoginForm, MessageForm
-from models import db, connect_db, User, Message
+from sqlalchemy import or_
+from forms import UserAddForm, LoginForm, MessageForm, UserProfileForm
+from models import db, connect_db, User, Message, Likes
 
 CURR_USER_KEY = "curr_user"
 
@@ -23,6 +23,9 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', "it's a secret")
 toolbar = DebugToolbarExtension(app)
 
 connect_db(app)
+
+db.create_all()
+
 
 
 ##############################################################################
@@ -51,6 +54,18 @@ def do_logout():
 
     if CURR_USER_KEY in session:
         del session[CURR_USER_KEY]
+
+
+def like(message_id):
+    liked_msg = Likes(user_that_liked=g.user.id, message_liked=message_id)
+    db.session.add(liked_msg)
+    db.session.commit()
+
+
+def unlike(message_id):
+    liked_msg = Likes.query.filter_by(user_that_liked=g.user.id, message_liked=message_id).first()
+    db.session.delete(liked_msg)
+    db.session.commit()
 
 
 @app.route('/signup', methods=["GET", "POST"])
@@ -114,6 +129,9 @@ def logout():
     """Handle logout of user."""
 
     # IMPLEMENT THIS
+    do_logout()
+    flash("You've been logged out")
+    return redirect("/")
 
 
 ##############################################################################
@@ -203,7 +221,32 @@ def stop_following(follow_id):
 def profile():
     """Update profile for current user."""
 
-    # IMPLEMENT THIS
+    # IMPLEMENT THIS password is used to check if the user is supposed to be there.  if they know the password, they can edit the user profile page.
+    form = UserProfileForm(obj=g.user)
+    if form.validate_on_submit():
+        user = User.authenticate(g.user.username,
+                                 form.password.data)
+        if user:
+            user.username = form.username.data,
+            user.email = form.email.data,
+            user.image_url = form.image_url.data or User.image_url.default.arg,
+            user.header_image_url = form.header_image_url.data,
+            user.bio = form.bio.data,
+            user.location = form.location.data
+            db.session.commit()
+        else:
+            flash("Wrong password!  Changes not allowed!")
+            return render_template('users/edit.html', form=form)
+        
+    else:
+        return render_template('users/edit.html', form=form)
+
+    return redirect("/users/detail")
+
+    
+@app.route('/users/detail')
+def user_details():
+    return render_template("users/detail.html", user=g.user)
 
 
 @app.route('/users/delete', methods=["POST"])
@@ -273,25 +316,36 @@ def messages_destroy(message_id):
 
 ##############################################################################
 # Homepage and error pages
+@app.route('/liked/<int:msg_id>', methods=["GET", "POST"])
+def liked_msg(msg_id):
+    liked = Likes.query.filter_by(user_that_liked=g.user.id, message_liked=msg_id).first()
+    print("LIKEDDDDDDDDDDD", liked)
+    if(liked):
+        unlike(msg_id)
+    else:
+        like(msg_id)
+    return redirect('/')
 
-
-@app.route('/')
+@app.route('/', methods=["GET", "POST"])
 def homepage():
     """Show homepage:
 
     - anon users: no messages
     - logged in: 100 most recent messages of followed_users
     """
-
+    print("CLICKEDDDDDD")
+    following = [user_being_followed.id for user_being_followed in g.user.following]
+    following.append(g.user.id)
     if g.user:
         messages = (Message
                     .query
+                    .filter(Message.user_id.in_(following))
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     .all())
 
-        return render_template('home.html', messages=messages)
-
+        likes = [like.id for like in g.user.likes]
+        return render_template('home.html', messages=messages, likes=likes)
     else:
         return render_template('home-anon.html')
 
