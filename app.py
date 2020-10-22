@@ -159,8 +159,9 @@ def users_show(user_id):
     """Show user profile."""
 
     user = User.query.get_or_404(user_id)
+    likes = [like.id for like in g.user.likes]
 
-    return render_template('users/show.html', user=user)
+    return render_template('users/show.html', user=user, likes=likes)
 
 
 @app.route('/users/<int:user_id>/following')
@@ -294,9 +295,9 @@ def messages_add():
 @app.route('/messages/<int:message_id>', methods=["GET"])
 def messages_show(message_id):
     """Show a message."""
-
+    likes = [like.id for like in g.user.likes]
     msg = Message.query.get(message_id)
-    return render_template('messages/show.html', message=msg)
+    return render_template('messages/show.html', message=msg, likes=likes)
 
 
 @app.route('/messages/<int:message_id>/delete', methods=["POST"])
@@ -310,21 +311,26 @@ def messages_destroy(message_id):
     msg = Message.query.get(message_id)
     db.session.delete(msg)
     db.session.commit()
-
     return redirect(f"/users/{g.user.id}")
 
 
 ##############################################################################
 # Homepage and error pages
-@app.route('/liked/<int:msg_id>', methods=["GET", "POST"])
+@app.route('/liked/<int:msg_id>', methods=["POST"])
 def liked_msg(msg_id):
     liked = Likes.query.filter_by(user_that_liked=g.user.id, message_liked=msg_id).first()
-    print("LIKEDDDDDDDDDDD", liked)
     if(liked):
         unlike(msg_id)
     else:
         like(msg_id)
     return redirect('/')
+
+    
+@app.route('/users/<int:user_id>/likes')
+def likes(user_id):
+    user = User.query.get_or_404(user_id)
+    likes = [like.id for like in g.user.likes]
+    return render_template("users/likes.html",user=user, likes=likes)
 
 @app.route('/', methods=["GET", "POST"])
 def homepage():
@@ -333,10 +339,9 @@ def homepage():
     - anon users: no messages
     - logged in: 100 most recent messages of followed_users
     """
-    print("CLICKEDDDDDD")
-    following = [user_being_followed.id for user_being_followed in g.user.following]
-    following.append(g.user.id)
     if g.user:
+        following = [user_being_followed.id for user_being_followed in g.user.following]
+        following.append(g.user.id)
         messages = (Message
                     .query
                     .filter(Message.user_id.in_(following))

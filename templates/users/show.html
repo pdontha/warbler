@@ -18,6 +18,17 @@
               {{ message.timestamp.strftime('%d %B %Y') }}
             </span>
             <p>{{ message.text }}</p>
+            <form class="messages-like-bottom" action="/liked/{{message.id}}" method="POST">
+              {% if message.user.username != g.user.username %}
+              <button type="submit" class="btn shadow-none">
+                {% if message.id in likes %}
+                  <i class="far fas fa-star"></i>
+                {% else%}
+                  <i class="far fa-star"></i>
+                {% endif %}
+              </button>
+              {% endif %}
+            </form>
           </div>
         </li>
 
