@@ -159,8 +159,9 @@ class Message(db.Model):
     )
 
     text = db.Column(
-        db.String(140),
-        nullable=False,
+        db.Text,
+        #db.String(140),
+        nullable=False
     )
 
     timestamp = db.Column(
